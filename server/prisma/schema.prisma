@@ -1,0 +1,1463 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum PlatformAdminStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum TenantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CompanyAccessScope {
+  ALL_COMPANIES
+  SELECTED_COMPANIES
+}
+
+enum PermissionEffect {
+  ALLOW
+  DENY
+}
+
+enum ActorType {
+  PLATFORM_ADMIN
+  TENANT_USER
+  SYSTEM
+}
+
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  TOKEN_REFRESH
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  SESSION_REVOKED
+}
+
+enum SecuritySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DeviceStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum BankAccountType {
+  CURRENT
+  SAVINGS
+  OVERDRAFT
+  OTHER
+}
+
+enum BankAccountStatus {
+  ACTIVE
+  INACTIVE
+  CLOSED
+  FROZEN
+}
+
+enum BankTransactionType {
+  OPENING_BALANCE
+  DEPOSIT
+  WITHDRAWAL
+  CHEQUE_PAYMENT
+  RECEIVED_CHEQUE_DEPOSIT
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum AdjustmentType {
+  CREDIT
+  DEBIT
+}
+
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  POSTED
+  REJECTED
+}
+
+enum ChequeBookStatus {
+  ACTIVE
+  EXHAUSTED
+  INACTIVE
+  CANCELLED
+}
+
+enum AllocationType {
+  ONLINE_SINGLE
+  OFFLINE_RANGE
+}
+
+enum AllocationStatus {
+  ACTIVE
+  EXHAUSTED
+  REVOKED
+  EXPIRED
+}
+
+enum PaymentType {
+  ACCOUNT_PAYEE
+  CASH
+}
+
+enum ChequeBusinessStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum ChequePrintingStatus {
+  NOT_PRINTED
+  PRINTED
+  PRINT_FAILED
+}
+
+enum ChequeBankingStatus {
+  PENDING
+  PRESENTED
+  CLEARED
+  BOUNCED
+  STOPPED
+  POSTPONED
+}
+
+enum ChequeStatusCategory {
+  BUSINESS
+  PRINTING
+  BANKING
+}
+
+enum PrintJobType {
+  INITIAL_PRINT
+  REPRINT
+  TEST_PRINT
+  PDF_EXPORT
+}
+
+enum PrintJobStatus {
+  QUEUED
+  SUCCESS
+  FAILED
+}
+
+enum ReceivedChequeStatus {
+  RECEIVED
+  PENDING_DEPOSIT
+  DEPOSITED
+  CLEARED
+  BOUNCED
+  RETURNED
+  CANCELLED
+}
+
+enum PaperOrientation {
+  PORTRAIT
+  LANDSCAPE
+}
+
+enum FeedDirection {
+  TOP_FIRST
+  BOTTOM_FIRST
+  LEFT_FIRST
+  RIGHT_FIRST
+}
+
+enum TemplateFieldKey {
+  CHEQUE_DATE
+  PAYEE_NAME
+  AMOUNT_NUMBER
+  AMOUNT_WORDS_LINE_1
+  AMOUNT_WORDS_LINE_2
+  PAYMENT_TYPE_MARK
+  CASH_RECIPIENT
+  LEFT_EDGE_MARKING
+  COMPANY_STAMP
+  CUSTOM_TEXT
+}
+
+enum TextAlignment {
+  LEFT
+  CENTER
+  RIGHT
+}
+
+enum SyncOperationType {
+  CREATE
+  UPDATE
+  STATUS_CHANGE
+  PRINT_RECORD
+}
+
+enum SyncOperationStatus {
+  PENDING
+  PROCESSING
+  SYNCHRONIZED
+  CONFLICT
+  FAILED
+  REJECTED
+}
+
+enum SyncConflictType {
+  VERSION_MISMATCH
+  CHEQUE_NUMBER_COLLISION
+  FEATURE_DISABLED
+  PERMISSION_REVOKED
+  TENANT_INACTIVE
+  VALIDATION_CONFLICT
+}
+
+enum ConflictResolutionStatus {
+  OPEN
+  RESOLVED_KEEP_SERVER
+  RESOLVED_APPLY_LOCAL
+  RESOLVED_MERGED
+  DISCARDED
+}
+
+enum ExportFormat {
+  PDF
+  EXCEL
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum BackupScope {
+  TENANT_EXPORT
+  PLATFORM_FULL
+}
+
+enum RestoreStatus {
+  PREVIEWED
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  FAILED
+  REJECTED
+}
+
+// ============================================================================
+// 8.1 PLATFORM TABLES
+// ============================================================================
+
+model PlatformAdministrator {
+  id                String              @id @default(uuid()) @db.Char(36)
+  firstName         String              @db.VarChar(100)
+  lastName          String              @db.VarChar(100)
+  email             String              @unique @db.VarChar(191)
+  username          String              @unique @db.VarChar(100)
+  passwordHash      String              @db.VarChar(255)
+  status            PlatformAdminStatus @default(ACTIVE)
+  lastLoginAt       DateTime?
+  passwordUpdatedAt DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  sessions            PlatformSession[]
+  auditLogs           PlatformAuditLog[]
+  passwordResetTokens PasswordResetToken[]
+  authoredAuditLogs   AuditLog[]           @relation("AuditPlatformAdmin")
+}
+
+model PlatformSession {
+  id               String    @id @default(uuid()) @db.Char(36)
+  platformAdminId  String    @db.Char(36)
+  refreshTokenHash String    @unique @db.VarChar(128)
+  ipAddress        String?   @db.VarChar(64)
+  userAgent        String?   @db.Text
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokedReason    String?   @db.VarChar(255)
+  lastRefreshedAt  DateTime?
+  createdAt        DateTime  @default(now())
+
+  platformAdmin PlatformAdministrator @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+
+  @@index([platformAdminId, expiresAt])
+}
+
+model Tenant {
+  id                     String       @id @default(uuid()) @db.Char(36)
+  tenantCode             String       @unique @db.VarChar(64)
+  organizationName       String       @db.VarChar(191)
+  registeredBusinessName String?      @db.VarChar(191)
+  contactPerson          String       @db.VarChar(150)
+  email                  String       @db.VarChar(191)
+  contactNumber          String?      @db.VarChar(50)
+  address                String?      @db.Text
+  country                String       @db.VarChar(100)
+  registrationNumber     String?      @db.VarChar(100)
+  status                 TenantStatus @default(PENDING)
+  defaultCompanyId       String?      @db.Char(36)
+  statusReason           String?      @db.VarChar(255)
+  suspendedAt            DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  createdBy              String?      @db.Char(36)
+  updatedBy              String?      @db.Char(36)
+
+  settings               TenantSetting?
+  tenantFeatures         TenantFeature[]
+  featureHistory         TenantFeatureHistory[]
+  subscriptions          Subscription[]
+  platformAuditLogs      PlatformAuditLog[]
+  users                  User[]
+  roles                  Role[]
+  userRoles              UserRole[]
+  userPermissionOverrides UserPermissionOverride[]
+  userCompanies          UserCompany[]
+  userSessions           UserSession[]
+  registeredDevices      RegisteredDevice[]
+  companies              Company[]              @relation("TenantCompanies")
+  defaultCompany         Company?               @relation("TenantDefaultCompany", fields: [defaultCompanyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  companySettings        CompanySetting[]
+  banks                  Bank[]
+  bankBranches           BankBranch[]
+  bankAccounts           BankAccount[]
+  bankTransactions       BankAccountTransaction[]
+  bankAdjustments        BankAccountAdjustment[]
+  chequeBooks            ChequeBook[]
+  chequeAllocations      ChequeNumberAllocation[]
+  issuedCheques          IssuedCheque[]
+  issuedChequeHistories  IssuedChequeStatusHistory[]
+  chequePrintJobs        ChequePrintJob[]
+  receivedCheques        ReceivedCheque[]
+  receivedChequeHistories ReceivedChequeStatusHistory[]
+  chequeTemplates        ChequeTemplate[]
+  chequeTemplateFields   ChequeTemplateField[]
+  calibrationProfiles    ChequeCalibrationProfile[]
+  syncOperations         SyncOperation[]
+  syncConflicts          SyncConflict[]
+  syncLogs               SyncLog[]
+  reportExportJobs       ReportExportJob[]
+  backupJobs             BackupJob[]
+  restoreJobs            RestoreJob[]
+  auditLogs              AuditLog[]
+  authLogs               AuthenticationLog[]
+  securityEvents         SecurityEvent[]
+
+  @@index([status])
+  @@index([organizationName])
+  @@index([defaultCompanyId])
+}
+
+model TenantSetting {
+  id                     String   @id @default(uuid()) @db.Char(36)
+  tenantId               String   @unique @db.Char(36)
+  defaultCurrency        String   @default("LKR") @db.VarChar(10)
+  dateFormat             String   @default("DD/MM/YYYY") @db.VarChar(32)
+  timezone               String   @default("Asia/Colombo") @db.VarChar(64)
+  offlineMaxSessionHours Int      @default(24)
+  requireDeviceApproval  Boolean  @default(true)
+  fiscalYearStartMonth   Int      @default(1)
+  settingsJson           Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Feature {
+  id               String   @id @default(uuid()) @db.Char(36)
+  key              String   @unique @db.VarChar(64)
+  name             String   @db.VarChar(120)
+  description      String?  @db.Text
+  category         String?  @db.VarChar(64)
+  isGlobalActive   Boolean  @default(true)
+  isDefaultEnabled Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenantFeatures TenantFeature[]
+  featureHistory TenantFeatureHistory[]
+
+  @@index([isGlobalActive, sortOrder])
+}
+
+model TenantFeature {
+  id             String    @id @default(uuid()) @db.Char(36)
+  tenantId       String    @db.Char(36)
+  featureId      String    @db.Char(36)
+  isEnabled      Boolean   @default(true)
+  isOverride     Boolean   @default(false)
+  overrideReason String?   @db.VarChar(255)
+  expiresAt      DateTime?
+  updatedBy      String?   @db.Char(36)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureId])
+  @@index([tenantId, isEnabled])
+}
+
+model TenantFeatureHistory {
+  id                  String    @id @default(uuid()) @db.Char(36)
+  tenantId            String    @db.Char(36)
+  featureId           String    @db.Char(36)
+  previousEnabled     Boolean?
+  newEnabled          Boolean
+  isOverride          Boolean   @default(false)
+  reason              String?   @db.VarChar(255)
+  changedByActorType  ActorType
+  changedById         String    @db.Char(36)
+  createdAt           DateTime  @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([featureId, createdAt])
+}
+
+model Subscription {
+  id              String             @id @default(uuid()) @db.Char(36)
+  tenantId        String             @db.Char(36)
+  planCode        String             @db.VarChar(64)
+  planName        String             @db.VarChar(120)
+  status          SubscriptionStatus @default(TRIAL)
+  maxUsers        Int?
+  maxCompanies    Int?
+  maxBankAccounts Int?
+  startsAt        DateTime
+  endsAt          DateTime?
+  autoRenew       Boolean            @default(false)
+  notes           String?            @db.Text
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+}
+
+model PlatformAuditLog {
+  id              String   @id @default(uuid()) @db.Char(36)
+  platformAdminId String?  @db.Char(36)
+  tenantId        String?  @db.Char(36)
+  action          String   @db.VarChar(120)
+  entityType      String   @db.VarChar(80)
+  entityId        String?  @db.Char(36)
+  previousValues  Json?
+  newValues       Json?
+  ipAddress       String?  @db.VarChar(64)
+  userAgent       String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  platformAdmin PlatformAdministrator? @relation(fields: [platformAdminId], references: [id], onDelete: SetNull)
+  tenant        Tenant?                @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([platformAdminId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ============================================================================
+// 8.2 AUTHENTICATION AND AUTHORIZATION TABLES
+// ============================================================================
+
+model User {
+  id                 String             @id @default(uuid()) @db.Char(36)
+  tenantId           String             @db.Char(36)
+  firstName          String             @db.VarChar(100)
+  lastName           String             @db.VarChar(100)
+  email              String             @db.VarChar(191)
+  username           String             @db.VarChar(100)
+  mobileNumber       String?            @db.VarChar(50)
+  passwordHash       String             @db.VarChar(255)
+  isClientAdmin      Boolean            @default(false)
+  status             UserStatus         @default(ACTIVE)
+  companyAccessScope CompanyAccessScope @default(ALL_COMPANIES)
+  lastLoginAt        DateTime?
+  lastActivityAt     DateTime?
+  passwordUpdatedAt  DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  createdBy          String?            @db.Char(36)
+  updatedBy          String?            @db.Char(36)
+
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userRoles           UserRole[]
+  permissionOverrides UserPermissionOverride[]
+  userCompanies       UserCompany[]
+  sessions            UserSession[]
+  passwordResetTokens PasswordResetToken[]
+  registeredDevices   RegisteredDevice[]
+  chequeAllocations   ChequeNumberAllocation[]
+  syncOperations      SyncOperation[]
+  reportExportJobs    ReportExportJob[]
+  backupJobs          BackupJob[]
+  restoreJobs         RestoreJob[]
+  auditLogs           AuditLog[]               @relation("AuditTenantUser")
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, username])
+  @@index([tenantId, status])
+}
+
+model Role {
+  id            String       @id @default(uuid()) @db.Char(36)
+  tenantId      String       @db.Char(36)
+  code          String       @db.VarChar(64)
+  name          String       @db.VarChar(120)
+  description   String?      @db.Text
+  isSystem      Boolean      @default(false)
+  isClientAdmin Boolean      @default(false)
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  createdBy     String?      @db.Char(36)
+  updatedBy     String?      @db.Char(36)
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Char(36)
+  code        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(120)
+  moduleKey   String   @db.VarChar(64)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  userOverrides   UserPermissionOverride[]
+
+  @@index([moduleKey])
+}
+
+model RolePermission {
+  id           String   @id @default(uuid()) @db.Char(36)
+  roleId       String   @db.Char(36)
+  permissionId String   @db.Char(36)
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id        String   @id @default(uuid()) @db.Char(36)
+  tenantId  String   @db.Char(36)
+  userId    String   @db.Char(36)
+  roleId    String   @db.Char(36)
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Char(36)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([tenantId, userId])
+}
+
+model UserPermissionOverride {
+  id           String           @id @default(uuid()) @db.Char(36)
+  tenantId     String           @db.Char(36)
+  userId       String           @db.Char(36)
+  permissionId String           @db.Char(36)
+  effect       PermissionEffect @default(ALLOW)
+  createdAt    DateTime         @default(now())
+  createdBy    String?          @db.Char(36)
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([tenantId, userId])
+}
+
+model UserCompany {
+  id        String   @id @default(uuid()) @db.Char(36)
+  tenantId  String   @db.Char(36)
+  userId    String   @db.Char(36)
+  companyId String   @db.Char(36)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  createdBy String?  @db.Char(36)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([tenantId, userId])
+  @@index([tenantId, companyId])
+}
+
+model UserSession {
+  id               String    @id @default(uuid()) @db.Char(36)
+  tenantId         String    @db.Char(36)
+  userId           String    @db.Char(36)
+  deviceId         String?   @db.Char(36)
+  refreshTokenHash String    @unique @db.VarChar(128)
+  ipAddress        String?   @db.VarChar(64)
+  userAgent        String?   @db.Text
+  isOfflineEnabled Boolean   @default(false)
+  expiresAt        DateTime
+  offlineExpiresAt DateTime?
+  revokedAt        DateTime?
+  revokedReason    String?   @db.VarChar(255)
+  lastRefreshedAt  DateTime?
+  createdAt        DateTime  @default(now())
+
+  tenant Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device RegisteredDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id              String    @id @default(uuid()) @db.Char(36)
+  actorType       ActorType
+  platformAdminId String?   @db.Char(36)
+  tenantId        String?   @db.Char(36)
+  userId          String?   @db.Char(36)
+  tokenHash       String    @unique @db.VarChar(128)
+  expiresAt       DateTime
+  usedAt          DateTime?
+  ipAddress       String?   @db.VarChar(64)
+  createdAt       DateTime  @default(now())
+
+  platformAdmin PlatformAdministrator? @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+  user          User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([platformAdminId, expiresAt])
+}
+
+model RegisteredDevice {
+  id                String       @id @default(uuid()) @db.Char(36)
+  tenantId          String       @db.Char(36)
+  userId            String       @db.Char(36)
+  deviceFingerprint String       @db.VarChar(191)
+  deviceName        String       @db.VarChar(120)
+  platform          String?      @db.VarChar(64)
+  browser           String?      @db.VarChar(64)
+  status            DeviceStatus @default(PENDING)
+  lastSeenAt        DateTime?
+  approvedBy        String?      @db.Char(36)
+  approvedAt        DateTime?
+  revokedBy         String?      @db.Char(36)
+  revokedAt         DateTime?
+  revocationReason  String?      @db.VarChar(255)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions            UserSession[]
+  chequeAllocations   ChequeNumberAllocation[]
+  originatedCheques   IssuedCheque[]
+  calibrationProfiles ChequeCalibrationProfile[]
+  syncOperations      SyncOperation[]
+  syncLogs            SyncLog[]
+
+  @@unique([tenantId, deviceFingerprint])
+  @@index([tenantId, userId, status])
+}
+
+// ============================================================================
+// 8.3 ORGANIZATION TABLES
+// ============================================================================
+
+model Company {
+  id                     String       @id @default(uuid()) @db.Char(36)
+  tenantId               String       @db.Char(36)
+  companyCode            String       @db.VarChar(64)
+  companyName            String       @db.VarChar(191)
+  registeredBusinessName String?      @db.VarChar(191)
+  registrationNumber     String?      @db.VarChar(100)
+  address                String?      @db.Text
+  city                   String?      @db.VarChar(100)
+  country                String?      @db.VarChar(100)
+  email                  String?      @db.VarChar(191)
+  contactNumber          String?      @db.VarChar(50)
+  website                String?      @db.VarChar(191)
+  logoUrl                String?      @db.VarChar(500)
+  isDefault              Boolean      @default(false)
+  status                 RecordStatus @default(ACTIVE)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  createdBy              String?      @db.Char(36)
+  updatedBy              String?      @db.Char(36)
+
+  tenant            Tenant                   @relation("TenantCompanies", fields: [tenantId], references: [id], onDelete: Restrict)
+  defaultForTenants Tenant[]                 @relation("TenantDefaultCompany")
+  settings          CompanySetting?
+  userCompanies     UserCompany[]
+  bankAccounts      BankAccount[]
+  bankTransactions  BankAccountTransaction[]
+  bankAdjustments   BankAccountAdjustment[]
+  chequeBooks       ChequeBook[]
+  chequeAllocations ChequeNumberAllocation[]
+  issuedCheques     IssuedCheque[]
+  receivedCheques   ReceivedCheque[]
+  chequeTemplates   ChequeTemplate[]
+  reportExportJobs  ReportExportJob[]
+
+  @@unique([tenantId, companyCode])
+  @@index([tenantId, status])
+  @@index([tenantId, isDefault])
+}
+
+model CompanySetting {
+  id                      String   @id @default(uuid()) @db.Char(36)
+  tenantId                String   @db.Char(36)
+  companyId               String   @unique @db.Char(36)
+  defaultCurrency         String?  @db.VarChar(10)
+  defaultChequeDateFormat String?  @db.VarChar(32)
+  defaultPayeePrefix      String?  @db.VarChar(64)
+  settingsJson            Json?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// ============================================================================
+// 8.4 BANK TABLES
+// ============================================================================
+
+model Bank {
+  id             String       @id @default(uuid()) @db.Char(36)
+  ownerScope     String       @default("GLOBAL") @db.VarChar(36)
+  tenantId       String?      @db.Char(36)
+  isSystemShared Boolean      @default(false)
+  bankCode       String       @db.VarChar(64)
+  bankName       String       @db.VarChar(191)
+  country        String       @db.VarChar(100)
+  status         RecordStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdBy      String?      @db.Char(36)
+  updatedBy      String?      @db.Char(36)
+
+  tenant          Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branches        BankBranch[]
+  bankAccounts    BankAccount[]
+  issuedCheques   IssuedCheque[]
+  receivedCheques ReceivedCheque[]
+  chequeTemplates ChequeTemplate[]
+
+  @@unique([ownerScope, bankCode])
+  @@index([tenantId, status])
+  @@index([isSystemShared, status])
+}
+
+model BankBranch {
+  id             String       @id @default(uuid()) @db.Char(36)
+  ownerScope     String       @default("GLOBAL") @db.VarChar(36)
+  tenantId       String?      @db.Char(36)
+  bankId         String       @db.Char(36)
+  isSystemShared Boolean      @default(false)
+  branchCode     String       @db.VarChar(64)
+  branchName     String       @db.VarChar(191)
+  address        String?      @db.Text
+  city           String?      @db.VarChar(100)
+  contactNumber  String?      @db.VarChar(50)
+  status         RecordStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdBy      String?      @db.Char(36)
+  updatedBy      String?      @db.Char(36)
+
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bank         Bank          @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  bankAccounts BankAccount[]
+
+  @@unique([bankId, ownerScope, branchCode])
+  @@index([tenantId, bankId, status])
+}
+
+model BankAccount {
+  id                 String            @id @default(uuid()) @db.Char(36)
+  tenantId           String            @db.Char(36)
+  companyId          String            @db.Char(36)
+  bankId             String            @db.Char(36)
+  branchId           String?           @db.Char(36)
+  accountName        String            @db.VarChar(191)
+  accountNumber      String            @db.VarChar(64)
+  accountType        BankAccountType   @default(CURRENT)
+  currency           String            @default("LKR") @db.VarChar(10)
+  openingBalance     Decimal           @default(0.00) @db.Decimal(18, 2)
+  openingBalanceDate DateTime          @db.Date
+  currentBookBalance Decimal           @default(0.00) @db.Decimal(18, 2)
+  status             BankAccountStatus @default(ACTIVE)
+  notes              String?           @db.Text
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  createdBy          String?           @db.Char(36)
+  updatedBy          String?           @db.Char(36)
+
+  tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bank            Bank                     @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  branch          BankBranch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  transactions    BankAccountTransaction[]
+  adjustments     BankAccountAdjustment[]
+  chequeBooks     ChequeBook[]
+  allocations     ChequeNumberAllocation[]
+  issuedCheques   IssuedCheque[]
+  receivedDeposits ReceivedCheque[]        @relation("ReceivedChequeDepositAccount")
+  chequeTemplates ChequeTemplate[]
+
+  @@unique([tenantId, bankId, accountNumber])
+  @@index([tenantId, companyId, status])
+}
+
+model BankAccountTransaction {
+  id                      String              @id @default(uuid()) @db.Char(36)
+  tenantId                String              @db.Char(36)
+  companyId               String              @db.Char(36)
+  bankAccountId           String              @db.Char(36)
+  transactionDate         DateTime
+  transactionType         BankTransactionType
+  referenceNumber         String?             @db.VarChar(100)
+  description             String?             @db.Text
+  debitAmount             Decimal             @default(0.00) @db.Decimal(18, 2)
+  creditAmount            Decimal             @default(0.00) @db.Decimal(18, 2)
+  balanceAfterTransaction Decimal             @db.Decimal(18, 2)
+  issuedChequeId          String?             @db.Char(36)
+  receivedChequeId        String?             @db.Char(36)
+  reversedTransactionId   String?             @db.Char(36)
+  idempotencyKey          String?             @db.VarChar(128)
+  sequenceNumber          BigInt
+  createdAt               DateTime            @default(now())
+  createdBy               String?             @db.Char(36)
+
+  tenant              Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bankAccount         BankAccount             @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  issuedCheque        IssuedCheque?           @relation(fields: [issuedChequeId], references: [id], onDelete: Restrict)
+  receivedCheque      ReceivedCheque?         @relation(fields: [receivedChequeId], references: [id], onDelete: Restrict)
+  reversedTransaction BankAccountTransaction? @relation("TransactionReversal", fields: [reversedTransactionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reversalEntries     BankAccountTransaction[] @relation("TransactionReversal")
+  adjustments         BankAccountAdjustment[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([bankAccountId, sequenceNumber])
+  @@index([tenantId, bankAccountId, transactionDate])
+  @@index([tenantId, companyId, transactionDate])
+  @@index([issuedChequeId])
+  @@index([receivedChequeId])
+}
+
+model BankAccountAdjustment {
+  id                  String           @id @default(uuid()) @db.Char(36)
+  tenantId            String           @db.Char(36)
+  companyId           String           @db.Char(36)
+  bankAccountId       String           @db.Char(36)
+  adjustmentType      AdjustmentType
+  amount              Decimal          @db.Decimal(18, 2)
+  reason              String           @db.Text
+  status              AdjustmentStatus @default(PENDING)
+  postedTransactionId String?          @db.Char(36)
+  requestedBy         String           @db.Char(36)
+  approvedBy          String?          @db.Char(36)
+  approvedAt          DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bankAccount       BankAccount             @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  postedTransaction BankAccountTransaction? @relation(fields: [postedTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, bankAccountId, status])
+}
+
+// ============================================================================
+// 8.5 CHEQUE TABLES
+// ============================================================================
+
+model ChequeBook {
+  id                  String           @id @default(uuid()) @db.Char(36)
+  tenantId            String           @db.Char(36)
+  companyId           String           @db.Char(36)
+  bankAccountId       String           @db.Char(36)
+  bookName            String           @db.VarChar(120)
+  chequePrefix        String?          @db.VarChar(20)
+  startingNumber      Int
+  endingNumber        Int
+  nextAvailableNumber Int
+  numberPaddingLength Int              @default(6)
+  totalLeaves         Int
+  usedLeaves          Int              @default(0)
+  status              ChequeBookStatus @default(ACTIVE)
+  issuedDate          DateTime?        @db.Date
+  notes               String?          @db.Text
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  createdBy           String?          @db.Char(36)
+  updatedBy           String?          @db.Char(36)
+
+  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bankAccount   BankAccount              @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  allocations   ChequeNumberAllocation[]
+  issuedCheques IssuedCheque[]
+
+  @@index([tenantId, bankAccountId, status])
+  @@index([tenantId, companyId])
+}
+
+model ChequeNumberAllocation {
+  id             String           @id @default(uuid()) @db.Char(36)
+  tenantId       String           @db.Char(36)
+  companyId      String           @db.Char(36)
+  bankAccountId  String           @db.Char(36)
+  chequeBookId   String           @db.Char(36)
+  deviceId       String?          @db.Char(36)
+  assignedUserId String?          @db.Char(36)
+  rangeStart     Int
+  rangeEnd       Int
+  nextNumber     Int
+  allocationType AllocationType   @default(OFFLINE_RANGE)
+  status         AllocationStatus @default(ACTIVE)
+  expiresAt      DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  createdBy      String?          @db.Char(36)
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bankAccount   BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  chequeBook    ChequeBook        @relation(fields: [chequeBookId], references: [id], onDelete: Restrict)
+  device        RegisteredDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  assignedUser  User?             @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  issuedCheques IssuedCheque[]
+
+  @@index([tenantId, chequeBookId, status])
+  @@index([tenantId, deviceId, status])
+}
+
+model IssuedCheque {
+  id                  String               @id @default(uuid()) @db.Char(36)
+  tenantId            String               @db.Char(36)
+  companyId           String               @db.Char(36)
+  bankId              String               @db.Char(36)
+  bankAccountId       String               @db.Char(36)
+  chequeBookId        String?              @db.Char(36)
+  allocationId        String?              @db.Char(36)
+  templateId          String?              @db.Char(36)
+  chequeNumber        String               @db.VarChar(50)
+  chequeNumberNumeric Int?
+  chequeDate          DateTime             @db.Date
+  dateFormat          String               @default("DD/MM/YYYY") @db.VarChar(32)
+  payeeName           String               @db.VarChar(191)
+  amount              Decimal              @db.Decimal(18, 2)
+  currency            String               @default("LKR") @db.VarChar(10)
+  paymentType         PaymentType          @default(ACCOUNT_PAYEE)
+  cashRecipient       String?              @db.VarChar(191)
+  amountInWords       String               @db.Text
+  description         String?              @db.Text
+  businessStatus      ChequeBusinessStatus @default(DRAFT)
+  printingStatus      ChequePrintingStatus @default(NOT_PRINTED)
+  bankingStatus       ChequeBankingStatus  @default(PENDING)
+  printCount          Int                  @default(0)
+  lastPrintedAt       DateTime?
+  clearedAt           DateTime?
+  bouncedAt           DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?              @db.Text
+  isOfflineCreated    Boolean              @default(false)
+  originDeviceId      String?              @db.Char(36)
+  idempotencyKey      String?              @db.VarChar(128)
+  version             Int                  @default(1)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  createdBy           String?              @db.Char(36)
+  updatedBy           String?              @db.Char(36)
+
+  tenant           Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company          Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bank             Bank                        @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  bankAccount      BankAccount                 @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  chequeBook       ChequeBook?                 @relation(fields: [chequeBookId], references: [id], onDelete: Restrict)
+  allocation       ChequeNumberAllocation?     @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+  template         ChequeTemplate?             @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  originDevice     RegisteredDevice?           @relation(fields: [originDeviceId], references: [id], onDelete: SetNull)
+  statusHistory    IssuedChequeStatusHistory[]
+  printJobs        ChequePrintJob[]
+  bankTransactions BankAccountTransaction[]
+
+  @@unique([tenantId, bankAccountId, chequeNumber])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, companyId, chequeDate])
+  @@index([tenantId, businessStatus, bankingStatus, printingStatus])
+  @@index([tenantId, payeeName])
+}
+
+model IssuedChequeStatusHistory {
+  id             String               @id @default(uuid()) @db.Char(36)
+  tenantId       String               @db.Char(36)
+  issuedChequeId String               @db.Char(36)
+  statusCategory ChequeStatusCategory
+  previousStatus String?              @db.VarChar(40)
+  newStatus      String               @db.VarChar(40)
+  reason         String?              @db.Text
+  changedBy      String?              @db.Char(36)
+  deviceId       String?              @db.Char(36)
+  createdAt      DateTime             @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  issuedCheque IssuedCheque @relation(fields: [issuedChequeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, issuedChequeId, createdAt])
+}
+
+model ChequePrintJob {
+  id                   String         @id @default(uuid()) @db.Char(36)
+  tenantId             String         @db.Char(36)
+  issuedChequeId       String         @db.Char(36)
+  templateId           String?        @db.Char(36)
+  calibrationProfileId String?        @db.Char(36)
+  jobType              PrintJobType   @default(INITIAL_PRINT)
+  status               PrintJobStatus @default(QUEUED)
+  printerName          String?        @db.VarChar(191)
+  paperSize            String?        @db.VarChar(64)
+  scalePercent         Decimal?       @db.Decimal(5, 2)
+  errorMessage         String?        @db.Text
+  printedBy            String?        @db.Char(36)
+  deviceId             String?        @db.Char(36)
+  printedAt            DateTime       @default(now())
+
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  issuedCheque       IssuedCheque              @relation(fields: [issuedChequeId], references: [id], onDelete: Cascade)
+  template           ChequeTemplate?           @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  calibrationProfile ChequeCalibrationProfile? @relation(fields: [calibrationProfileId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, issuedChequeId, printedAt])
+}
+
+model ReceivedCheque {
+  id                   String               @id @default(uuid()) @db.Char(36)
+  tenantId             String               @db.Char(36)
+  companyId            String               @db.Char(36)
+  chequeNumber         String               @db.VarChar(50)
+  chequeDate           DateTime             @db.Date
+  receivedDate         DateTime             @db.Date
+  bankId               String?              @db.Char(36)
+  bankName             String               @db.VarChar(191)
+  branchName           String?              @db.VarChar(191)
+  receivedFrom         String               @db.VarChar(191)
+  amount               Decimal              @db.Decimal(18, 2)
+  currency             String               @default("LKR") @db.VarChar(10)
+  depositBankAccountId String?              @db.Char(36)
+  depositedAt          DateTime?
+  clearedAt            DateTime?
+  note                 String?              @db.Text
+  status               ReceivedChequeStatus @default(RECEIVED)
+  version              Int                  @default(1)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  createdBy            String?              @db.Char(36)
+  updatedBy            String?              @db.Char(36)
+
+  tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company            Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bank               Bank?                         @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  depositBankAccount BankAccount?                  @relation("ReceivedChequeDepositAccount", fields: [depositBankAccountId], references: [id], onDelete: SetNull)
+  statusHistory      ReceivedChequeStatusHistory[]
+  bankTransactions   BankAccountTransaction[]
+
+  @@index([tenantId, companyId, status])
+  @@index([tenantId, receivedDate])
+  @@index([tenantId, chequeDate])
+  @@index([tenantId, chequeNumber])
+}
+
+model ReceivedChequeStatusHistory {
+  id               String                @id @default(uuid()) @db.Char(36)
+  tenantId         String                @db.Char(36)
+  receivedChequeId String                @db.Char(36)
+  previousStatus   ReceivedChequeStatus?
+  newStatus        ReceivedChequeStatus
+  reason           String?               @db.Text
+  changedBy        String?               @db.Char(36)
+  createdAt        DateTime              @default(now())
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receivedCheque ReceivedCheque @relation(fields: [receivedChequeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, receivedChequeId, createdAt])
+}
+
+// ============================================================================
+// 8.6 TEMPLATE AND CALIBRATION TABLES
+// ============================================================================
+
+model ChequeTemplate {
+  id            String           @id @default(uuid()) @db.Char(36)
+  tenantId      String           @db.Char(36)
+  companyId     String?          @db.Char(36)
+  bankId        String           @db.Char(36)
+  bankAccountId String?          @db.Char(36)
+  templateName  String           @db.VarChar(150)
+  paperWidthMm  Decimal          @db.Decimal(8, 2)
+  paperHeightMm Decimal          @db.Decimal(8, 2)
+  orientation   PaperOrientation @default(LANDSCAPE)
+  dateFormat    String           @default("DD/MM/YYYY") @db.VarChar(32)
+  feedDirection FeedDirection    @default(TOP_FIRST)
+  centerOnA4    Boolean          @default(false)
+  isDefault     Boolean          @default(false)
+  status        RecordStatus     @default(ACTIVE)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  createdBy     String?          @db.Char(36)
+  updatedBy     String?          @db.Char(36)
+
+  tenant              Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company             Company?                   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  bank                Bank                       @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  bankAccount         BankAccount?               @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  fields              ChequeTemplateField[]
+  calibrationProfiles ChequeCalibrationProfile[]
+  issuedCheques       IssuedCheque[]
+  printJobs           ChequePrintJob[]
+
+  @@index([tenantId, bankId, status])
+  @@index([tenantId, companyId])
+}
+
+model ChequeTemplateField {
+  id               String           @id @default(uuid()) @db.Char(36)
+  tenantId         String           @db.Char(36)
+  templateId       String           @db.Char(36)
+  fieldKey         TemplateFieldKey
+  label            String           @db.VarChar(100)
+  xMm              Decimal          @db.Decimal(8, 2)
+  yMm              Decimal          @db.Decimal(8, 2)
+  widthMm          Decimal          @db.Decimal(8, 2)
+  heightMm         Decimal          @db.Decimal(8, 2)
+  fontFamily       String           @default("Arial") @db.VarChar(80)
+  fontSizePt       Decimal          @default(11.00) @db.Decimal(5, 2)
+  fontWeight       String           @default("normal") @db.VarChar(32)
+  letterSpacingMm  Decimal          @default(0.00) @db.Decimal(5, 2)
+  lineHeight       Decimal          @default(1.20) @db.Decimal(5, 2)
+  textAlign        TextAlignment    @default(LEFT)
+  dateDigitGapMm   Decimal?         @db.Decimal(5, 2)
+  isVisible        Boolean          @default(true)
+  customConfigJson Json?
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template ChequeTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, fieldKey])
+  @@index([tenantId, templateId])
+}
+
+model ChequeCalibrationProfile {
+  id                   String    @id @default(uuid()) @db.Char(36)
+  tenantId             String    @db.Char(36)
+  templateId           String    @db.Char(36)
+  deviceId             String?   @db.Char(36)
+  profileName          String    @db.VarChar(120)
+  offsetXMm            Decimal   @default(0.00) @db.Decimal(6, 2)
+  offsetYMm            Decimal   @default(0.00) @db.Decimal(6, 2)
+  scalePercent         Decimal   @default(100.00) @db.Decimal(5, 2)
+  printerMarginTopMm   Decimal   @default(0.00) @db.Decimal(6, 2)
+  printerMarginLeftMm  Decimal   @default(0.00) @db.Decimal(6, 2)
+  isDefault            Boolean   @default(false)
+  lastTestPrintedAt    DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  createdBy            String?   @db.Char(36)
+  updatedBy            String?   @db.Char(36)
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template  ChequeTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  device    RegisteredDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  printJobs ChequePrintJob[]
+
+  @@index([tenantId, templateId])
+}
+
+// ============================================================================
+// 8.7 OFFLINE SYNCHRONIZATION TABLES
+// ============================================================================
+
+model SyncOperation {
+  id              String              @id @default(uuid()) @db.Char(36)
+  tenantId        String              @db.Char(36)
+  userId          String              @db.Char(36)
+  deviceId        String              @db.Char(36)
+  operationId     String              @db.Char(36)
+  idempotencyKey  String              @db.VarChar(128)
+  entityType      String              @db.VarChar(64)
+  recordId        String              @db.Char(36)
+  operationType   SyncOperationType
+  payloadJson     Json
+  clientVersion   Int?
+  status          SyncOperationStatus @default(PENDING)
+  retryCount      Int                 @default(0)
+  lastError       String?             @db.Text
+  clientCreatedAt DateTime
+  processedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  device    RegisteredDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  conflicts SyncConflict[]
+  logs      SyncLog[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, deviceId, createdAt])
+}
+
+model SyncConflict {
+  id                 String                   @id @default(uuid()) @db.Char(36)
+  tenantId           String                   @db.Char(36)
+  syncOperationId    String                   @db.Char(36)
+  entityType         String                   @db.VarChar(64)
+  recordId           String                   @db.Char(36)
+  conflictType       SyncConflictType
+  localPayloadJson   Json
+  serverSnapshotJson Json
+  resolutionStatus   ConflictResolutionStatus @default(OPEN)
+  resolutionNotes    String?                  @db.Text
+  resolvedBy         String?                  @db.Char(36)
+  resolvedAt         DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  syncOperation SyncOperation @relation(fields: [syncOperationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, resolutionStatus, createdAt])
+  @@index([tenantId, recordId])
+}
+
+model SyncLog {
+  id              String   @id @default(uuid()) @db.Char(36)
+  tenantId        String   @db.Char(36)
+  userId          String?  @db.Char(36)
+  deviceId        String?  @db.Char(36)
+  syncOperationId String?  @db.Char(36)
+  eventType       String   @db.VarChar(80)
+  status          String   @db.VarChar(40)
+  message         String   @db.Text
+  detailsJson     Json?
+  createdAt       DateTime @default(now())
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device        RegisteredDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  syncOperation SyncOperation?    @relation(fields: [syncOperationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([syncOperationId])
+}
+
+// ============================================================================
+// 8.8 REPORTING AND BACKUP TABLES
+// ============================================================================
+
+model ReportExportJob {
+  id              String       @id @default(uuid()) @db.Char(36)
+  tenantId        String       @db.Char(36)
+  userId          String       @db.Char(36)
+  companyId       String?      @db.Char(36)
+  reportCategory  String       @db.VarChar(80)
+  format          ExportFormat
+  filtersJson     Json?
+  status          JobStatus    @default(QUEUED)
+  progressPercent Int          @default(0)
+  fileName        String?      @db.VarChar(255)
+  errorMessage    String?      @db.Text
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, status])
+}
+
+model BackupJob {
+  id            String      @id @default(uuid()) @db.Char(36)
+  tenantId      String?     @db.Char(36)
+  userId        String?     @db.Char(36)
+  backupScope   BackupScope @default(TENANT_EXPORT)
+  format        String      @default("JSON") @db.VarChar(20)
+  schemaVersion String      @default("1.0.0") @db.VarChar(32)
+  status        JobStatus   @default(QUEUED)
+  recordCount   Int         @default(0)
+  checksum      String?     @db.VarChar(128)
+  fileSizeBytes Int?
+  errorMessage  String?     @db.Text
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+}
+
+model RestoreJob {
+  id                   String        @id @default(uuid()) @db.Char(36)
+  tenantId             String        @db.Char(36)
+  userId               String        @db.Char(36)
+  backupSchemaVersion  String        @db.VarChar(32)
+  status               RestoreStatus @default(PREVIEWED)
+  previewSummaryJson   Json?
+  validationErrorsJson Json?
+  isConfirmed          Boolean       @default(false)
+  confirmedBy          String?       @db.Char(36)
+  confirmedAt          DateTime?
+  errorMessage         String?       @db.Text
+  completedAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+}
+
+// ============================================================================
+// 8.9 AUDIT TABLES
+// ============================================================================
+
+model AuditLog {
+  id              String    @id @default(uuid()) @db.Char(36)
+  tenantId        String?   @db.Char(36)
+  companyId       String?   @db.Char(36)
+  userId          String?   @db.Char(36)
+  platformAdminId String?   @db.Char(36)
+  deviceId        String?   @db.Char(36)
+  actorType       ActorType
+  action          String    @db.VarChar(120)
+  entityType      String    @db.VarChar(80)
+  entityId        String?   @db.Char(36)
+  previousValues  Json?
+  newValues       Json?
+  ipAddress       String?   @db.VarChar(64)
+  userAgent       String?   @db.Text
+  requestId       String?   @db.VarChar(64)
+  createdAt       DateTime  @default(now())
+
+  tenant        Tenant?                @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user          User?                  @relation("AuditTenantUser", fields: [userId], references: [id], onDelete: SetNull)
+  platformAdmin PlatformAdministrator? @relation("AuditPlatformAdmin", fields: [platformAdminId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, companyId, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@index([action, createdAt])
+}
+
+model AuthenticationLog {
+  id              String        @id @default(uuid()) @db.Char(36)
+  tenantId        String?       @db.Char(36)
+  userId          String?       @db.Char(36)
+  platformAdminId String?       @db.Char(36)
+  actorType       ActorType
+  identifierUsed  String        @db.VarChar(191)
+  eventType       AuthEventType
+  success         Boolean
+  failureReason   String?       @db.VarChar(255)
+  ipAddress       String?       @db.VarChar(64)
+  userAgent       String?       @db.Text
+  deviceId        String?       @db.Char(36)
+  createdAt       DateTime      @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+model SecurityEvent {
+  id           String           @id @default(uuid()) @db.Char(36)
+  tenantId     String?          @db.Char(36)
+  userId       String?          @db.Char(36)
+  actorType    ActorType?
+  eventType    String           @db.VarChar(100)
+  severity     SecuritySeverity @default(MEDIUM)
+  description  String           @db.Text
+  metadataJson Json?
+  ipAddress    String?          @db.VarChar(64)
+  requestPath  String?          @db.VarChar(255)
+  createdAt    DateTime         @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, severity, createdAt])
+  @@index([eventType, createdAt])
+}
